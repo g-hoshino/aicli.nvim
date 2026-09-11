@@ -1,0 +1,177 @@
+*aicli.txt*  CLI-based LLM agents in a floating terminal
+
+==============================================================================
+CONTENTS                                                       *aicli-contents*
+
+    1. Introduction ......................... |aicli-introduction|
+    2. Requirements ......................... |aicli-requirements|
+    3. Setup ................................ |aicli-setup|
+    4. Commands ............................. |aicli-commands|
+    5. Mappings ............................. |aicli-mappings|
+    6. Configuration ........................ |aicli-configuration|
+    7. API .................................. |aicli-api|
+    8. Highlights ........................... |aicli-highlights|
+    9. Health ............................... |aicli-health|
+
+==============================================================================
+1. INTRODUCTION                                            *aicli-introduction*
+
+aicli.nvim runs CLI-based LLM coding agents, such as Claude Code or Codex CLI,
+in a floating Neovim terminal. It has no plugin dependencies: the window and
+the job are built on |nvim_open_win()| and |jobstart()|.
+
+Each agent keeps one session per project root. Hiding the window does not stop
+the CLI, so toggling it away and back returns to the same conversation.
+
+==============================================================================
+2. REQUIREMENTS                                            *aicli-requirements*
+
+- Neovim 0.10 or newer
+- At least one agent CLI on your $PATH
+
+Authentication is handled by each CLI, not by Neovim.
+
+==============================================================================
+3. SETUP                                                          *aicli-setup*
+
+                                                              *aicli.setup()*
+require("aicli").setup({opts})
+
+Applies {opts} and creates the per-provider commands and keymaps. Calling it
+is what turns the `providers` list into |:Claude| and `<leader>ac`.
+
+Without setup(), |:Aicli|, |:AicliToggle| and |:AicliStatus| still work with
+default options, but no keys are mapped on your behalf.
+
+==============================================================================
+4. COMMANDS                                                    *aicli-commands*
+
+                                                                      *:Aicli*
+:Aicli                  Pick an installed agent with |vim.ui.select()| and
+                        toggle it. Agents whose executable is not on $PATH are
+                        left out of the list.
+
+                                                                *:AicliToggle*
+:AicliToggle {name}     Toggle the terminal of the provider called {name}.
+                        Completes on configured provider names.
+
+                                                                *:AicliStatus*
+:AicliStatus            Report the last opened terminal and whether its CLI is
+                        running, hidden or exited.
+
+                                                       *:Claude* *:Codex*
+:Claude, :Codex         Created by |aicli.setup()| from the `command` field of
+                        each provider.
+
+==============================================================================
+5. MAPPINGS                                                    *aicli-mappings*
+
+Created by |aicli.setup()|:
+
+    <leader>aa      Pick an agent                    (`select_key`)
+    <leader>ac      Toggle Claude Code               (provider `key`)
+    <leader>ax      Toggle Codex CLI                 (provider `key`)
+
+Buffer-local, inside an aicli terminal:
+
+    <Esc><Esc>      Leave terminal mode              (`keys.normal_mode`)
+    <C-e>           Hide the window, keep the session (`keys.hide`)
+
+Set any of these to false to bind nothing.
+
+==============================================================================
+6. CONFIGURATION                                          *aicli-configuration*
+
+Defaults: >lua
+    require("aicli").setup({
+      providers = {
+        { name = "Claude", cmd = "claude", key = "<leader>ac", command = "Claude" },
+        { name = "Codex",  cmd = "codex",  key = "<leader>ax", command = "Codex" },
+      },
+      select_key = "<leader>aa",
+      root_markers = { ".git", ".hg", "pyproject.toml", "Cargo.toml",
+                       "package.json", "go.mod" },
+      float = {
+        anchor = "right",
+        width = 0.5,
+        height = 0.9,
+        margin = 5,
+        row = nil,
+        col = nil,
+        border = "rounded",
+        title = true,
+        title_pos = "center",
+        winblend = 0,
+        zindex = 50,
+      },
+      keys = {
+        normal_mode = "<Esc><Esc>",
+        hide = "<C-e>",
+      },
+      start_insert = true,
+      close_on_exit = false,
+      auto_reload = true,
+      env = nil,
+      on_open = nil,
+      on_exit = nil,
+    })
+<
+                                                             *aicli-providers*
+`providers` is a list, and setting it replaces the default list entirely
+rather than merging into it. Each entry accepts:
+
+    name        (string, required)  Display name.
+    cmd         (string, required)  Executable looked up in $PATH.
+    args        (string[])          Extra arguments.
+    key         (string|false)      Normal-mode toggle key.
+    command     (string|false)      User command to create.
+    env         (table)             Environment for this provider only.
+
+                                                                 *aicli-float*
+`float.width`, `float.height`, `float.row` and `float.col` each accept a
+fraction of the editor (0 < n <= 1), an absolute number of cells (n > 1), or a
+function receiving the available cells and returning either.
+
+`float.anchor` is used only when `float.col` is nil. "left" and "right" keep
+`float.margin` cells between the window and the screen edge.
+
+                                                           *aicli-auto_reload*
+`auto_reload` runs |:checktime| on |FocusGained|, |TermLeave| and |TermClose|,
+so buffers the agent edited on disk are reloaded. It relies on 'autoread'.
+
+==============================================================================
+7. API                                                              *aicli-api*
+
+>lua
+    local aicli = require("aicli")
+
+    aicli.toggle(name)    -- toggle the terminal for the current project
+    aicli.open(name)      -- show it, starting the CLI on first use
+    aicli.close(name)     -- hide it, leaving the CLI running
+    aicli.shutdown(name)  -- stop the CLI and discard the buffer
+    aicli.select()        -- pick among installed agents
+    aicli.status()        -- report the last opened terminal
+    aicli.list()          -- every live terminal object
+<
+The `on_open` and `on_exit` hooks receive a terminal object with fields `name`,
+`cmd`, `cwd`, `bufnr`, `winid`, `job_id` and `exit_code`, and the methods
+`open()`, `close()`, `toggle()`, `resize()`, `shutdown()`, `is_open()` and
+`is_running()`.
+
+==============================================================================
+8. HIGHLIGHTS                                                *aicli-highlights*
+
+    AicliNormal     links to |hl-NormalFloat|
+    AicliBorder     links to |hl-FloatBorder|
+    AicliTitle      links to |hl-FloatTitle|
+
+All three are defined with `default`, so your colour scheme wins.
+
+==============================================================================
+9. HEALTH                                                        *aicli-health*
+
+:checkhealth aicli      Reports the Neovim version, whether |aicli.setup()| has
+                        been called, and the resolved path of every configured
+                        CLI.
+
+vim:tw=78:ts=8:ft=help:norl:
