@@ -12,12 +12,18 @@ if vim.fn.has("nvim-0.10") == 0 then
   return
 end
 
---- Provider names, for command completion.
+--- Provider names, for command completion. A Lua `complete` function gets no
+--- filtering from Neovim, so the prefix already typed is matched here.
+---@param arg_lead string
 ---@return string[]
-local function provider_names()
-  return vim.tbl_map(function(provider)
-    return provider.name
-  end, require("aicli.config").get().providers)
+local function provider_names(arg_lead)
+  local names = {}
+  for _, provider in ipairs(require("aicli.config").get().providers) do
+    if arg_lead == "" or vim.startswith(provider.name, arg_lead) then
+      table.insert(names, provider.name)
+    end
+  end
+  return names
 end
 
 vim.api.nvim_create_user_command("Aicli", function()

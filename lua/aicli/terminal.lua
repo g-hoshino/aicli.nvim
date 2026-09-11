@@ -218,6 +218,15 @@ function Terminal:open()
     return
   end
 
+  -- A terminal buffer cannot host a second job once its first one has exited,
+  -- so a session that ended is reopened from a fresh buffer. This is what lets
+  -- toggling restart a CLI the user quit, instead of showing its dead output
+  -- for ever.
+  if self:buf_valid() and not self:is_running() then
+    pcall(vim.api.nvim_buf_delete, self.bufnr, { force = true })
+    self.bufnr = nil
+  end
+
   local fresh = not self:buf_valid()
   if fresh then
     self.bufnr = vim.api.nvim_create_buf(false, true)
