@@ -7,7 +7,7 @@ terminal. No plugin dependencies.
 <!--
   Demo GIF goes here, e.g.
   <p align="center"><img src="https://github.com/user-attachments/assets/..." alt="aicli.nvim demo" width="800"></p>
-  Suggested script: open a file, <leader>ac, let the agent edit it, <C-e> to
+  Suggested script: open a file, <leader>ac, let the agent edit it, <C-q> to
   hide (the buffer reloads), <leader>ac to come back to the same conversation.
 -->
 
@@ -23,7 +23,7 @@ Once [installed](#installation), in any file of a project:
 
 1. `<leader>ac` opens Claude Code in a float at the project root
    (`<leader>ax` for Codex CLI, `<leader>aa` to pick).
-2. Ask it to change something. `<C-e>` hides the window; the agent keeps
+2. Ask it to change something. `<C-q>` hides the window; the agent keeps
    running, and the buffers it edited reload.
 3. `<leader>ac` again brings back the same conversation.
 
