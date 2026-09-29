@@ -48,8 +48,11 @@ M.defaults = {
 
   --- Buffer-local keys inside an aicli terminal. Set the table to false to bind
   --- nothing, or an individual entry to false to skip just that key.
+  --- Escape is left to the CLI: Claude Code and Codex CLI both use `Esc` to
+  --- interrupt and `Esc Esc` to rewind, and a terminal-mode mapping on
+  --- `<Esc><Esc>` would delay the first and swallow the second.
   keys = {
-    normal_mode = "<Esc><Esc>", --- Leave terminal mode.
+    normal_mode = "<C-q>", --- Leave terminal mode. <C-\><C-n> always works too.
     hide = "<C-e>", --- Hide the window, keeping the session running.
   },
 

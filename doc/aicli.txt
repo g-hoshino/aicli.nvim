@@ -74,10 +74,18 @@ Created by |aicli.setup()|:
 
 Buffer-local, inside an aicli terminal:
 
-    <Esc><Esc>      Leave terminal mode              (`keys.normal_mode`)
+    <C-q>           Leave terminal mode              (`keys.normal_mode`)
     <C-e>           Hide the window, keep the session (`keys.hide`)
 
-Set any of these to false to bind nothing.
+Set any of these to false to bind nothing. Neovim's own |CTRL-\_CTRL-N|
+leaves terminal mode whatever `keys.normal_mode` is.
+
+Escape is deliberately not mapped. Claude Code and Codex CLI use <Esc> to
+interrupt the agent and <Esc><Esc> to rewind the conversation; a terminal-mode
+mapping on <Esc><Esc> would delay the first by 'timeoutlen' and swallow the
+second. To bring the old default back: >lua
+    require("aicli").setup({ keys = { normal_mode = "<Esc><Esc>" } })
+<
 
 ==============================================================================
 6. CONFIGURATION                                          *aicli-configuration*
@@ -105,7 +113,7 @@ Defaults: >lua
         zindex = 50,
       },
       keys = {
-        normal_mode = "<Esc><Esc>",
+        normal_mode = "<C-q>",
         hide = "<C-e>",
       },
       start_insert = true,
