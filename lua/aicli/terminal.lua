@@ -21,6 +21,8 @@ Terminal.__index = Terminal
 --- Neovim 0.11 replaced termopen() with jobstart({ term = true }).
 local has_term_option = vim.fn.has("nvim-0.11") == 1
 
+--- Only records the settings. The buffer, window and job are created lazily by
+--- `open()`, so creating a terminal is cheap and starts nothing.
 ---@param opts { name: string, cmd: string[], cwd: string, config: table, env: table|nil }
 ---@return AicliTerminal
 function Terminal.new(opts)
@@ -37,6 +39,8 @@ function Terminal.new(opts)
   }, Terminal)
 end
 
+--- Handles are checked for validity rather than trusted, because the user can
+--- delete the buffer or close the window without going through this module.
 ---@return boolean
 function Terminal:buf_valid()
   return self.bufnr ~= nil and vim.api.nvim_buf_is_valid(self.bufnr)
@@ -47,6 +51,7 @@ function Terminal:is_open()
   return self.winid ~= nil and vim.api.nvim_win_is_valid(self.winid)
 end
 
+--- `job_id` is cleared by `handle_exit()`, so it doubles as the running flag.
 ---@return boolean True while the CLI process is still running.
 function Terminal:is_running()
   return self.job_id ~= nil
@@ -69,11 +74,15 @@ function Terminal:win_config()
   local edge = has_border and 1 or 0
   local margin = float.margin or 0
 
+  -- Resolve the requested size, then clamp it so the window and its border
+  -- always fit on screen.
   local width = util.resolve_size(float.width, columns, math.floor(columns * 0.5))
   local height = util.resolve_size(float.height, lines, math.floor(lines * 0.9))
   width = math.max(1, math.min(width, columns - 2 * edge))
   height = math.max(1, math.min(height, lines - 2 * edge))
 
+  -- Horizontal position: an explicit `col` wins, otherwise `anchor` decides.
+  -- The result is clamped so the border never leaves the screen.
   local col
   if float.col ~= nil then
     col = util.resolve_size(float.col, columns, 0)
@@ -86,6 +95,7 @@ function Terminal:win_config()
   end
   col = math.min(math.max(col, edge), columns - width - edge)
 
+  -- Vertical position: an explicit `row`, or centred. Clamped like `col`.
   local row
   if float.row ~= nil then
     row = util.resolve_size(float.row, lines, 0)
@@ -114,6 +124,8 @@ function Terminal:win_config()
   return win_config
 end
 
+--- Window-local options for the float: route its highlights through the
+--- Aicli* groups and keep editor decorations out of the terminal output.
 function Terminal:apply_win_options()
   local win = self.winid
   vim.wo[win].winblend = self.config.float.winblend or 0
@@ -126,6 +138,8 @@ function Terminal:apply_win_options()
   vim.wo[win].list = false
 end
 
+--- Buffer-local keys, so they exist only inside this terminal. Called once per
+--- buffer, right after its job starts.
 function Terminal:set_buf_keymaps()
   local keys = self.config.keys
   if keys == false or keys == nil then
@@ -161,12 +175,14 @@ function Terminal:start_job()
     end,
   }
 
+  -- Provider-specific variables override the ones shared by every provider.
   local env = self.config.env
   if self.env then
     env = vim.tbl_extend("force", env or {}, self.env)
   end
   opts.env = env
 
+  -- Both calls attach the job to the current buffer as a terminal.
   local job
   if has_term_option then
     opts.term = true
@@ -182,15 +198,19 @@ function Terminal:start_job()
 
   self.job_id = job
   self.exit_code = nil
+  -- Lets statuslines and autocmds tell which provider a buffer belongs to.
   vim.b[self.bufnr].aicli_provider = self.name
   return true
 end
 
+--- Record the exit so `open()` knows to restart the CLI, then run the hook.
 ---@param code integer
 function Terminal:handle_exit(code)
   self.job_id = nil
   self.exit_code = code
 
+  -- User hooks run under pcall so an error in them cannot leave the terminal
+  -- in an inconsistent state.
   if self.config.on_exit then
     pcall(self.config.on_exit, self, code)
   end
@@ -204,6 +224,8 @@ function Terminal:handle_exit(code)
   end
 end
 
+--- Terminal mode is only entered while the CLI is alive; the output of an
+--- exited job is left to read in normal mode.
 function Terminal:enter_insert()
   if self.config.start_insert and self:is_running() then
     vim.cmd("startinsert")
@@ -212,6 +234,7 @@ end
 
 --- Show the terminal, starting the CLI the first time.
 function Terminal:open()
+  -- Already visible: just focus it.
   if self:is_open() then
     vim.api.nvim_set_current_win(self.winid)
     self:enter_insert()
@@ -227,6 +250,8 @@ function Terminal:open()
     self.bufnr = nil
   end
 
+  -- An unlisted scratch buffer. `bufhidden = hide` keeps it, and the job in
+  -- it, alive after its window is closed.
   local fresh = not self:buf_valid()
   if fresh then
     self.bufnr = vim.api.nvim_create_buf(false, true)
@@ -236,6 +261,9 @@ function Terminal:open()
   self.winid = vim.api.nvim_open_win(self.bufnr, true, self:win_config())
   self:apply_win_options()
 
+  -- The job can only start now that the buffer is shown (see start_job()).
+  -- If it fails, undo the half-built window and buffer so the next open()
+  -- starts from a clean state.
   if fresh then
     if not self:start_job() then
       self:close()
@@ -264,6 +292,7 @@ function Terminal:close()
     end
     pcall(vim.api.nvim_win_close, self.winid, true)
   end
+  -- Also forget a handle the user already closed by other means (:q, ...).
   self.winid = nil
 end
 

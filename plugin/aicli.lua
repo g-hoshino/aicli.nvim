@@ -2,11 +2,13 @@
 --- as it is installed. Provider commands and keymaps are created by setup(),
 --- which is where the user opts into having keys bound for them.
 
+-- Define the commands only once, even if this file is sourced again.
 if vim.g.loaded_aicli then
   return
 end
 vim.g.loaded_aicli = true
 
+-- The plugin relies on APIs such as vim.fs.root() that need Neovim 0.10.
 if vim.fn.has("nvim-0.10") == 0 then
   vim.notify("aicli.nvim requires Neovim 0.10 or newer", vim.log.levels.ERROR, { title = "aicli.nvim" })
   return
@@ -26,6 +28,8 @@ local function provider_names(arg_lead)
   return names
 end
 
+-- The modules are required inside the callbacks, so they are loaded on first
+-- use rather than at startup.
 vim.api.nvim_create_user_command("Aicli", function()
   require("aicli").select()
 end, { desc = "Choose an LLM terminal" })
