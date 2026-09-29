@@ -1,8 +1,8 @@
 --- A single CLI session living in a floating window.
 ---
---- This is the part that replaces toggleterm.nvim. A terminal owns one scratch
---- buffer and one job; the window is created and destroyed as it is toggled, so
---- hiding a terminal never interrupts the CLI running inside it.
+--- A terminal owns one scratch buffer and one job; the window is created and
+--- destroyed as it is toggled, so hiding a terminal never interrupts the CLI
+--- running inside it.
 
 local util = require("aicli.util")
 
@@ -18,8 +18,8 @@ local util = require("aicli.util")
 local Terminal = {}
 Terminal.__index = Terminal
 
---- Neovim 0.11 replaced termopen() with jobstart({ term = true }).
-local has_term_option = vim.fn.has("nvim-0.11") == 1
+--- Cells kept free between the window's outline and the right edge.
+local MARGIN = 5
 
 --- Only records the settings. The buffer, window and job are created lazily by
 --- `open()`, so creating a terminal is cheap and starts nothing.
@@ -46,79 +46,65 @@ function Terminal:buf_valid()
   return self.bufnr ~= nil and vim.api.nvim_buf_is_valid(self.bufnr)
 end
 
+--- Whether the window exists at all, possibly in another tab page.
 ---@return boolean
-function Terminal:is_open()
+function Terminal:has_window()
   return self.winid ~= nil and vim.api.nvim_win_is_valid(self.winid)
 end
 
---- `job_id` is cleared by `handle_exit()`, so it doubles as the running flag.
+--- Whether the window is visible in the current tab page. Floats belong to one
+--- tab page, so a window elsewhere does not count as open.
+---@return boolean
+function Terminal:is_open()
+  return self:has_window() and vim.api.nvim_win_get_tabpage(self.winid) == vim.api.nvim_get_current_tabpage()
+end
+
+--- Whether the cursor is in the window.
+---@return boolean
+function Terminal:is_focused()
+  return self:has_window() and vim.api.nvim_get_current_win() == self.winid
+end
+
+--- `job_id` is cleared by the job's own exit callback, so together with a live
+--- buffer it doubles as the running flag.
 ---@return boolean True while the CLI process is still running.
 function Terminal:is_running()
-  return self.job_id ~= nil
+  return self:buf_valid() and self.job_id ~= nil
 end
 
 --- Geometry for `nvim_open_win`, recomputed on every open and on VimResized so
 --- the window tracks the editor size instead of freezing at its first layout.
+--- The window sits against the right edge, centred vertically.
 ---@return table
 function Terminal:win_config()
   local float = self.config.float
   local columns = vim.o.columns
-  -- Rows the floating window may occupy: everything but the command line and
-  -- the global statusline.
+  -- Rows the window may cover: everything but the command line and the
+  -- statusline of the window below it.
   local lines = vim.o.lines - vim.o.cmdheight - (vim.o.laststatus > 0 and 1 or 0)
 
-  local has_border = float.border ~= nil and float.border ~= "none" and float.border ~= ""
-  -- A border is drawn just outside the window: one cell on each side. `edge` is
-  -- that one cell, so positions can be expressed against the visible outline
-  -- rather than against the text area.
+  local has_border = float.border ~= "none"
+  -- A border is drawn just outside the text area, one cell on each side.
   local edge = has_border and 1 or 0
-  local margin = float.margin or 0
 
-  -- Resolve the requested size, then clamp it so the window and its border
-  -- always fit on screen.
-  local width = util.resolve_size(float.width, columns, math.floor(columns * 0.5))
-  local height = util.resolve_size(float.height, lines, math.floor(lines * 0.9))
-  width = math.max(1, math.min(width, columns - 2 * edge))
-  height = math.max(1, math.min(height, lines - 2 * edge))
-
-  -- Horizontal position: an explicit `col` wins, otherwise `anchor` decides.
-  -- The result is clamped so the border never leaves the screen.
-  local col
-  if float.col ~= nil then
-    col = util.resolve_size(float.col, columns, 0)
-  elseif float.anchor == "left" then
-    col = margin + edge
-  elseif float.anchor == "right" then
-    col = columns - width - margin - edge
-  else
-    col = math.floor((columns - width) / 2)
-  end
-  col = math.min(math.max(col, edge), columns - width - edge)
-
-  -- Vertical position: an explicit `row`, or centred. Clamped like `col`.
-  local row
-  if float.row ~= nil then
-    row = util.resolve_size(float.row, lines, 0)
-  else
-    row = math.floor((lines - height) / 2)
-  end
-  row = math.min(math.max(row, edge), lines - height - edge)
+  -- Clamp the size so the window and its border always fit on screen.
+  local width = math.max(1, math.min(math.floor(columns * float.width), columns - 2 * edge))
+  local height = math.max(1, math.min(math.floor(lines * float.height), lines - 2 * edge))
 
   local win_config = {
     relative = "editor",
     width = width,
     height = height,
-    col = col,
-    row = row,
+    col = math.max(edge, columns - width - edge - MARGIN),
+    row = math.floor((lines - height) / 2),
     style = "minimal",
-    border = has_border and float.border or "none",
-    zindex = float.zindex,
+    border = float.border,
   }
 
   -- nvim_open_win rejects a title when there is no border to draw it on.
-  if has_border and float.title then
-    win_config.title = " " .. self.name .. " "
-    win_config.title_pos = float.title_pos or "center"
+  if has_border then
+    win_config.title = (" %s · %s "):format(self.name, vim.fs.basename(self.cwd))
+    win_config.title_pos = "center"
   end
 
   return win_config
@@ -128,14 +114,12 @@ end
 --- Aicli* groups and keep editor decorations out of the terminal output.
 function Terminal:apply_win_options()
   local win = self.winid
-  vim.wo[win].winblend = self.config.float.winblend or 0
   vim.wo[win].winhighlight = "Normal:AicliNormal,FloatBorder:AicliBorder,FloatTitle:AicliTitle"
-  vim.wo[win].cursorline = false
-  vim.wo[win].number = false
-  vim.wo[win].relativenumber = false
+  -- Keep :edit and friends from replacing the terminal inside this window.
+  vim.wo[win].winfixbuf = true
+  -- style = "minimal" turns off numbers, cursorline, spell and list, but leaves
+  -- the sign column on "auto".
   vim.wo[win].signcolumn = "no"
-  vim.wo[win].spell = false
-  vim.wo[win].list = false
 end
 
 --- Buffer-local keys, so they exist only inside this terminal. Called once per
@@ -169,9 +153,14 @@ end
 --- pty takes its initial size from the window showing it.
 function Terminal:start_job()
   local opts = {
+    term = true,
     cwd = self.cwd,
-    on_exit = function(_, code)
-      self:handle_exit(code)
+    -- Only the current job owns this terminal's state. The exit of a job that
+    -- was already replaced (shutdown() then open()) must not touch it.
+    on_exit = function(id, code)
+      if id == self.job_id then
+        self:handle_exit(code)
+      end
     end,
   }
 
@@ -182,24 +171,17 @@ function Terminal:start_job()
   end
   opts.env = env
 
-  -- Both calls attach the job to the current buffer as a terminal.
-  local job
-  if has_term_option then
-    opts.term = true
-    job = vim.fn.jobstart(self.cmd, opts)
-  else
-    job = vim.fn.termopen(self.cmd, opts)
-  end
-
-  if job <= 0 then
-    util.notify("failed to start " .. table.concat(self.cmd, " "), vim.log.levels.ERROR)
+  -- jobstart() returns <= 0 for a bad command but raises for other errors,
+  -- such as a cwd that was deleted after the session first started.
+  local ok, job = pcall(vim.fn.jobstart, self.cmd, opts)
+  if not ok or job <= 0 then
+    local reason = ok and "" or (": " .. tostring(job))
+    util.notify("failed to start " .. table.concat(self.cmd, " ") .. reason, vim.log.levels.ERROR)
     return false
   end
 
   self.job_id = job
   self.exit_code = nil
-  -- Lets statuslines and autocmds tell which provider a buffer belongs to.
-  vim.b[self.bufnr].aicli_provider = self.name
   return true
 end
 
@@ -217,9 +199,12 @@ function Terminal:handle_exit(code)
 
   if self.config.close_on_exit then
     -- Deferred: the job callback runs while the terminal buffer is still being
-    -- torn down, which is not a safe moment to delete it.
+    -- torn down, which is not a safe moment to delete it. By then a new session
+    -- may have been started, and that one must be left alone.
     vim.schedule(function()
-      self:shutdown()
+      if not self:is_running() then
+        self:shutdown()
+      end
     end)
   end
 end
@@ -232,28 +217,28 @@ function Terminal:enter_insert()
   end
 end
 
---- Show the terminal, starting the CLI the first time.
+--- Show the terminal, starting the CLI when no session is running.
 function Terminal:open()
-  -- Already visible: just focus it.
-  if self:is_open() then
+  -- Already visible with a live CLI: just focus it.
+  if self:is_open() and self:is_running() then
     vim.api.nvim_set_current_win(self.winid)
     self:enter_insert()
     return
   end
 
+  -- A window left open in another tab page, or one still showing a session
+  -- that ended, is closed so a live session is shown here instead.
+  self:close()
+
   -- A terminal buffer cannot host a second job once its first one has exited,
   -- so a session that ended is reopened from a fresh buffer. This is what lets
   -- toggling restart a CLI the user quit, instead of showing its dead output
   -- for ever.
-  if self:buf_valid() and not self:is_running() then
-    pcall(vim.api.nvim_buf_delete, self.bufnr, { force = true })
-    self.bufnr = nil
-  end
-
-  -- An unlisted scratch buffer. `bufhidden = hide` keeps it, and the job in
-  -- it, alive after its window is closed.
-  local fresh = not self:buf_valid()
-  if fresh then
+  -- The new buffer is an unlisted scratch buffer. `bufhidden = hide` keeps
+  -- it, and the job in it, alive after its window is closed.
+  local start = not self:is_running()
+  if start then
+    self:delete_buffer()
     self.bufnr = vim.api.nvim_create_buf(false, true)
     vim.bo[self.bufnr].bufhidden = "hide"
   end
@@ -262,13 +247,11 @@ function Terminal:open()
   self:apply_win_options()
 
   -- The job can only start now that the buffer is shown (see start_job()).
-  -- If it fails, undo the half-built window and buffer so the next open()
-  -- starts from a clean state.
-  if fresh then
+  -- If it fails, shutdown() drops the half-built window and buffer so the
+  -- next open() starts from a clean state.
+  if start then
     if not self:start_job() then
-      self:close()
-      vim.api.nvim_buf_delete(self.bufnr, { force = true })
-      self.bufnr = nil
+      self:shutdown()
       return
     end
     self:set_buf_keymaps()
@@ -284,7 +267,7 @@ end
 --- Hide the window. The job keeps running and the buffer is kept, so reopening
 --- returns to the same session.
 function Terminal:close()
-  if self:is_open() then
+  if self:has_window() then
     -- Closing a window from a terminal-mode mapping leaves the editor in a
     -- half-entered insert state; drop back to normal mode first.
     if vim.api.nvim_get_current_win() == self.winid and vim.fn.mode() == "t" then
@@ -296,8 +279,9 @@ function Terminal:close()
   self.winid = nil
 end
 
+--- Hide the window when the cursor is in it; otherwise show it and move there.
 function Terminal:toggle()
-  if self:is_open() then
+  if self:is_focused() then
     self:close()
   else
     self:open()
@@ -306,24 +290,28 @@ end
 
 --- Re-apply the layout, e.g. after the editor was resized.
 function Terminal:resize()
-  if self:is_open() then
+  if self:has_window() then
     pcall(vim.api.nvim_win_set_config, self.winid, self:win_config())
   end
 end
 
---- Stop the CLI and drop the buffer. The terminal is unusable afterwards.
+function Terminal:delete_buffer()
+  if self:buf_valid() then
+    pcall(vim.api.nvim_buf_delete, self.bufnr, { force = true })
+  end
+  self.bufnr = nil
+end
+
+--- Stop the CLI and drop the buffer. `job_id` is cleared by the job's own exit
+--- callback, which also runs the `on_exit` hook.
 function Terminal:shutdown()
   self:close()
 
   if self.job_id then
     pcall(vim.fn.jobstop, self.job_id)
-    self.job_id = nil
   end
 
-  if self:buf_valid() then
-    pcall(vim.api.nvim_buf_delete, self.bufnr, { force = true })
-  end
-  self.bufnr = nil
+  self:delete_buffer()
 end
 
 return Terminal

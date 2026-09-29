@@ -39,28 +39,4 @@ function M.project_root(markers)
   return vim.fs.root(start, markers) or cwd
 end
 
---- Resolve a size given as a fraction, an absolute cell count, or a function.
----@param value number|fun(total: integer): number|nil
----@param total integer Cells available along that axis.
----@param fallback integer Used when `value` does not resolve to a number.
----@return integer
-function M.resolve_size(value, total, fallback)
-  -- A user function that errors falls back instead of breaking the layout.
-  if type(value) == "function" then
-    local ok, result = pcall(value, total)
-    value = ok and result or nil
-  end
-
-  if type(value) ~= "number" then
-    return fallback
-  end
-
-  -- 1 is treated as a fraction (the whole axis), not as a single cell.
-  if value > 0 and value <= 1 then
-    return math.floor(total * value)
-  end
-
-  return math.floor(value)
-end
-
 return M

@@ -7,14 +7,12 @@ function M.check()
   health.start("aicli.nvim")
 
   -- Mirrors the version guard in plugin/aicli.lua.
-  if vim.fn.has("nvim-0.10") == 1 then
+  if vim.fn.has("nvim-0.11") == 1 then
     health.ok("Neovim " .. tostring(vim.version()))
   else
-    health.error("Neovim 0.10 or newer is required")
+    health.error("Neovim 0.11 or newer is required")
   end
 
-  -- Checked before `Config.get()` below, which would otherwise store the
-  -- defaults and make this always pass.
   local Config = require("aicli.config")
   if Config.is_configured() then
     health.ok("setup() has been called")

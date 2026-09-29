@@ -8,9 +8,9 @@ if vim.g.loaded_aicli then
 end
 vim.g.loaded_aicli = true
 
--- The plugin relies on APIs such as vim.fs.root() that need Neovim 0.10.
-if vim.fn.has("nvim-0.10") == 0 then
-  vim.notify("aicli.nvim requires Neovim 0.10 or newer", vim.log.levels.ERROR, { title = "aicli.nvim" })
+-- The plugin relies on jobstart({ term = true }), added in Neovim 0.11.
+if vim.fn.has("nvim-0.11") == 0 then
+  vim.notify("aicli.nvim requires Neovim 0.11 or newer", vim.log.levels.ERROR, { title = "aicli.nvim" })
   return
 end
 
@@ -44,4 +44,4 @@ end, {
 
 vim.api.nvim_create_user_command("AicliStatus", function()
   require("aicli").status()
-end, { desc = "Show the last opened LLM terminal" })
+end, { desc = "Show every started LLM terminal" })
