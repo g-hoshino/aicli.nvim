@@ -22,11 +22,13 @@ the job are built on |nvim_open_win()| and |jobstart()|.
 
 Each agent keeps one session per project root. Hiding the window does not stop
 the CLI, so toggling it away and back returns to the same conversation.
+Only one agent window is shown per tab page: opening one hides the other,
+which keeps running.
 
 ==============================================================================
 2. REQUIREMENTS                                            *aicli-requirements*
 
-- Neovim 0.10 or newer
+- Neovim 0.11 or newer
 - At least one agent CLI on your $PATH
 
 Authentication is handled by each CLI, not by Neovim.
@@ -55,9 +57,15 @@ default options, but no keys are mapped on your behalf.
 :AicliToggle {name}     Toggle the terminal of the provider called {name}.
                         Completes on configured provider names.
 
+                        Toggling hides the window when the cursor is in it.
+                        Otherwise it shows the window and moves the cursor
+                        there, also when the window is already visible but
+                        another window has focus. The provider commands and
+                        keys behave the same way.
+
                                                                 *:AicliStatus*
-:AicliStatus            Report the last opened terminal and whether its CLI is
-                        running, hidden or exited.
+:AicliStatus            Report every started terminal with its project root
+                        and whether its CLI is running, hidden or exited.
 
                                                        *:Claude* *:Codex*
 :Claude, :Codex         Created by |aicli.setup()| from the `command` field of
@@ -74,8 +82,12 @@ Created by |aicli.setup()|:
 
 Buffer-local, inside an aicli terminal:
 
-    <Esc><Esc>      Leave terminal mode              (`keys.normal_mode`)
     <C-e>           Hide the window, keep the session (`keys.hide`)
+
+`keys.normal_mode` binds a key for leaving terminal mode. It is off by
+default, because agent CLIs use <Esc> themselves and a mapping such as
+`<Esc><Esc>` delays every single <Esc> by 'timeoutlen'. Neovim's own
+CTRL-\ CTRL-N always leaves terminal mode.
 
 Set any of these to false to bind nothing.
 
@@ -92,20 +104,12 @@ Defaults: >lua
       root_markers = { ".git", ".hg", "pyproject.toml", "Cargo.toml",
                        "package.json", "go.mod" },
       float = {
-        anchor = "right",
         width = 0.5,
         height = 0.9,
-        margin = 5,
-        row = nil,
-        col = nil,
         border = "rounded",
-        title = true,
-        title_pos = "center",
-        winblend = 0,
-        zindex = 50,
       },
       keys = {
-        normal_mode = "<Esc><Esc>",
+        normal_mode = false,
         hide = "<C-e>",
       },
       start_insert = true,
@@ -128,16 +132,16 @@ rather than merging into it. Each entry accepts:
     env         (table)             Environment for this provider only.
 
                                                                  *aicli-float*
-`float.width`, `float.height`, `float.row` and `float.col` each accept a
-fraction of the editor (0 < n <= 1), an absolute number of cells (n > 1), or a
-function receiving the available cells and returning either.
-
-`float.anchor` is used only when `float.col` is nil. "left" and "right" keep
-`float.margin` cells between the window and the screen edge.
+The window is placed against the right edge of the editor and centred
+vertically. `float.width` and `float.height` are fractions of the editor
+(0 < n <= 1). `float.border` accepts anything |nvim_open_win()| does; the
+provider name and the project directory are shown on it, as " Claude · app ",
+and "none" drops both.
 
                                                            *aicli-auto_reload*
-`auto_reload` runs |:checktime| on |FocusGained|, |TermLeave| and |TermClose|,
-so buffers the agent edited on disk are reloaded. It relies on 'autoread'.
+`auto_reload` runs |:checktime| on |FocusGained|, |TermLeave|, |TermClose|,
+|BufEnter| and |CursorHold|, so buffers the agent edited on disk are reloaded,
+including while its window is hidden. It relies on 'autoread'.
 
 ==============================================================================
 7. API                                                              *aicli-api*
@@ -145,18 +149,18 @@ so buffers the agent edited on disk are reloaded. It relies on 'autoread'.
 >lua
     local aicli = require("aicli")
 
-    aicli.toggle(name)    -- toggle the terminal for the current project
+    aicli.toggle(name)    -- hide it if focused, otherwise show and focus it
     aicli.open(name)      -- show it, starting the CLI on first use
     aicli.close(name)     -- hide it, leaving the CLI running
     aicli.shutdown(name)  -- stop the CLI and discard the buffer
     aicli.select()        -- pick among installed agents
-    aicli.status()        -- report the last opened terminal
-    aicli.list()          -- every live terminal object
+    aicli.status()        -- report every started terminal
+    aicli.list()          -- every started terminal, running or not
 <
 The `on_open` and `on_exit` hooks receive a terminal object with fields `name`,
 `cmd`, `cwd`, `bufnr`, `winid`, `job_id` and `exit_code`, and the methods
-`open()`, `close()`, `toggle()`, `resize()`, `shutdown()`, `is_open()` and
-`is_running()`.
+`open()`, `close()`, `toggle()`, `resize()`, `shutdown()`, `is_open()`,
+`is_focused()` and `is_running()`.
 
 ==============================================================================
 8. HIGHLIGHTS                                                *aicli-highlights*
