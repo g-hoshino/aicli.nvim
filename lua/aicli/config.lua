@@ -75,6 +75,7 @@ M.defaults = {
   on_exit = nil,
 }
 
+--- Result of the last `M.setup()`. nil until a configuration is in place.
 ---@type table|nil
 local config = nil
 
@@ -85,6 +86,8 @@ local function validate(cfg)
     error("aicli.nvim: `providers` must be a list of provider tables")
   end
 
+  -- Provider names key the terminals, commands and picker entries, so each
+  -- one must be present and unique.
   local seen = {}
   for index, provider in ipairs(cfg.providers) do
     local where = ("aicli.nvim: providers[%d]"):format(index)
@@ -134,6 +137,8 @@ function M.get()
   return config
 end
 
+--- Whether a configuration is in place. Note that `M.get()` stores the
+--- defaults when called first, so this is also true after that fallback.
 ---@return boolean
 function M.is_configured()
   return config ~= nil

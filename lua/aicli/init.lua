@@ -19,8 +19,12 @@ local terminals = {}
 ---@type string|nil
 local active = nil
 
+--- Group for every autocmd this module creates, so a repeated `setup()` can
+--- replace them instead of stacking duplicates.
 local augroup = vim.api.nvim_create_augroup("aicli", { clear = true })
 
+--- Key into `terminals`. NUL is used as the separator because it cannot occur
+--- in a path, so distinct (name, cwd) pairs do not produce the same key.
 ---@param name string
 ---@param cwd string
 ---@return string
@@ -28,6 +32,7 @@ local function terminal_key(name, cwd)
   return name .. "\0" .. cwd
 end
 
+--- Look up a provider by its display name in the active configuration.
 ---@param name string
 ---@return AicliProvider|nil
 local function find_provider(name)
@@ -64,11 +69,15 @@ local function get_terminal(provider)
   local cwd = util.project_root(config.root_markers)
   local key = terminal_key(provider.name, cwd)
 
+  -- Reuse the session while its buffer is alive. Once the buffer is gone
+  -- (shutdown(), :bwipeout, ...) a new terminal takes over the slot.
   local term = terminals[key]
   if term and term:buf_valid() then
     return term
   end
 
+  -- The command is kept as a list so jobstart() runs it without a shell and
+  -- arguments need no quoting.
   local cmd = { provider.cmd }
   for _, arg in ipairs(provider.args or {}) do
     table.insert(cmd, arg)
@@ -85,6 +94,7 @@ local function get_terminal(provider)
   return term
 end
 
+--- Provider name to terminal, reporting unknown names to the user.
 ---@param name string
 ---@return AicliTerminal|nil
 local function resolve(name)
@@ -115,6 +125,7 @@ function M.close(name)
   end
 end
 
+--- Hide the terminal if it is visible, otherwise show it.
 ---@param name string
 function M.toggle(name)
   local term = resolve(name)
@@ -167,6 +178,8 @@ function M.status()
     return
   end
 
+  -- Terminals are per project, so this describes the session of the current
+  -- buffer's project.
   local term = resolve(active)
   local state = "not running"
   if term then
@@ -186,15 +199,19 @@ function M.list()
   return vim.tbl_values(terminals)
 end
 
+--- Link the plugin's groups to the standard float groups. `default = true`
+--- leaves any definition from the colour scheme or the user in place.
 local function define_highlights()
   vim.api.nvim_set_hl(0, "AicliNormal", { link = "NormalFloat", default = true })
   vim.api.nvim_set_hl(0, "AicliBorder", { link = "FloatBorder", default = true })
   vim.api.nvim_set_hl(0, "AicliTitle", { link = "FloatTitle", default = true })
 end
 
+--- Create the per-provider user commands and keymaps, plus the picker key.
 ---@param config table
 local function define_provider_mappings(config)
   for _, provider in ipairs(config.providers) do
+    -- One closure per provider, shared by its command and its keymap.
     local function toggle()
       M.toggle(provider.name)
     end
@@ -223,6 +240,8 @@ end
 
 ---@param config table
 local function define_autocmds(config)
+  -- Start from an empty group so calling setup() again does not add
+  -- duplicate handlers.
   vim.api.nvim_clear_autocmds({ group = augroup })
 
   -- Keep open windows proportional to the editor.

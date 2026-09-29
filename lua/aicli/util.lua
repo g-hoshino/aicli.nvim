@@ -2,12 +2,14 @@
 
 local M = {}
 
+--- Whether `cmd` can be found in $PATH.
 ---@param cmd string
 ---@return boolean
 function M.executable(cmd)
   return vim.fn.executable(cmd) == 1
 end
 
+--- `vim.notify` with the plugin's title, so messages are recognisable.
 ---@param msg string
 ---@param level? integer One of vim.log.levels. Defaults to INFO.
 function M.notify(msg, level)
@@ -26,6 +28,7 @@ function M.project_root(markers)
   local cwd = vim.fn.getcwd()
   local start = cwd
 
+  -- Only normal buffers with a name are backed by a real file.
   if vim.bo.buftype == "" then
     local name = vim.api.nvim_buf_get_name(0)
     if name ~= "" then
@@ -42,6 +45,7 @@ end
 ---@param fallback integer Used when `value` does not resolve to a number.
 ---@return integer
 function M.resolve_size(value, total, fallback)
+  -- A user function that errors falls back instead of breaking the layout.
   if type(value) == "function" then
     local ok, result = pcall(value, total)
     value = ok and result or nil
@@ -51,6 +55,7 @@ function M.resolve_size(value, total, fallback)
     return fallback
   end
 
+  -- 1 is treated as a fraction (the whole axis), not as a single cell.
   if value > 0 and value <= 1 then
     return math.floor(total * value)
   end
