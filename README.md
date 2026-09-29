@@ -84,8 +84,8 @@ provider commands and keys; without it only `:Aicli`, `:AicliToggle` and
 Toggling hides the window when the cursor is in it, and otherwise shows it and
 moves the cursor there. Each tab page shows one agent window at a time.
 
-Inside the window, `<C-e>` hides it and `<C-\><C-n>` leaves terminal mode.
-`<Esc>` is left to the agent.
+Inside the window, `<C-q>` hides it and `<C-\><C-n>` leaves terminal mode.
+`<Esc>` and `<C-e>` are left to the agent.
 
 ## Configuration
 
@@ -101,7 +101,7 @@ require("aicli").setup({
   select_key = "<leader>aa",
   root_markers = { ".git", ".hg", "pyproject.toml", "Cargo.toml", "package.json", "go.mod" },
   float = { width = 0.5, height = 0.9, border = "rounded" }, -- fractions of the editor
-  keys = { normal_mode = false, hide = "<C-e>" },
+  keys = { normal_mode = false, hide = "<C-q>" },
   start_insert = true,
   close_on_exit = false,
   auto_reload = true,
