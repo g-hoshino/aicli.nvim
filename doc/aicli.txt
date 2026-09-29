@@ -82,12 +82,17 @@ Created by |aicli.setup()|:
 
 Buffer-local, inside an aicli terminal:
 
-    <C-e>           Hide the window, keep the session (`keys.hide`)
+    <C-q>           Hide the window, keep the session (`keys.hide`)
 
 `keys.normal_mode` binds a key for leaving terminal mode. It is off by
 default, because agent CLIs use <Esc> themselves and a mapping such as
 `<Esc><Esc>` delays every single <Esc> by 'timeoutlen'. Neovim's own
 CTRL-\ CTRL-N always leaves terminal mode.
+
+`keys.hide` is <C-q> rather than <C-e>, which agent CLIs such as Claude Code
+use to move to the end of the line. To bring the old key back: >lua
+    require("aicli").setup({ keys = { hide = "<C-e>" } })
+<
 
 Set any of these to false to bind nothing.
 
@@ -110,7 +115,7 @@ Defaults: >lua
       },
       keys = {
         normal_mode = false,
-        hide = "<C-e>",
+        hide = "<C-q>",
       },
       start_insert = true,
       close_on_exit = false,

@@ -46,7 +46,9 @@ M.defaults = {
     --- Leave terminal mode. Off by default: agent CLIs use <Esc> themselves,
     --- and Neovim's own <C-\><C-n> always works.
     normal_mode = false,
-    hide = "<C-e>", --- Hide the window, keeping the session running.
+    --- Hide the window, keeping the session running. Not <C-e>: agent CLIs
+    --- use it to move to the end of the line.
+    hide = "<C-q>",
   },
 
   --- Enter terminal mode when the window opens.
