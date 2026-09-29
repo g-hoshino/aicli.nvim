@@ -29,27 +29,23 @@ M.defaults = {
   --- from the current buffer wins; the cwd is used when nothing matches.
   root_markers = { ".git", ".hg", "pyproject.toml", "Cargo.toml", "package.json", "go.mod" },
 
-  --- Floating window geometry and appearance.
-  --- Sizes accept a fraction of the editor (0 < n <= 1), an absolute cell count
-  --- (n > 1), or a function receiving the available cells and returning either.
+  --- Floating window, placed against the right edge and centred vertically.
+  --- Sizes are fractions of the editor (0 < n <= 1).
   float = {
-    anchor = "right", ---@type "left"|"center"|"right" Ignored when `col` is set.
     width = 0.5,
     height = 0.9,
-    margin = 5, --- Cells kept between the window and the screen edge for left/right.
-    row = nil, --- Explicit row. nil centres vertically.
-    col = nil, --- Explicit column. nil uses `anchor`.
-    border = "rounded", ---@type string|string[] Any value `nvim_open_win` accepts.
-    title = true, --- Show the provider name in the border. Needs a border.
-    title_pos = "center", ---@type "left"|"center"|"right"
-    winblend = 0,
-    zindex = 50,
+    --- Any value `nvim_open_win` accepts. The provider name and the project
+    --- directory are shown on it; "none" drops both.
+    ---@type string|string[]
+    border = "rounded",
   },
 
   --- Buffer-local keys inside an aicli terminal. Set the table to false to bind
   --- nothing, or an individual entry to false to skip just that key.
   keys = {
-    normal_mode = "<Esc><Esc>", --- Leave terminal mode.
+    --- Leave terminal mode. Off by default: agent CLIs use <Esc> themselves,
+    --- and Neovim's own <C-\><C-n> always works.
+    normal_mode = false,
     hide = "<C-e>", --- Hide the window, keeping the session running.
   },
 
@@ -102,6 +98,13 @@ local function validate(cfg)
     end
     seen[provider.name] = true
   end
+
+  for _, field in ipairs({ "width", "height" }) do
+    local value = cfg.float[field]
+    if type(value) ~= "number" or value <= 0 or value > 1 then
+      error(("aicli.nvim: `float.%s` must be a fraction in (0, 1]"):format(field))
+    end
+  end
 end
 
 --- Merge user options over the defaults and remember the result.
@@ -131,14 +134,10 @@ end
 --- never called. This is what lets :Aicli work with no configuration at all.
 ---@return table
 function M.get()
-  if not config then
-    return M.setup({})
-  end
-  return config
+  return config or M.defaults
 end
 
---- Whether a configuration is in place. Note that `M.get()` stores the
---- defaults when called first, so this is also true after that fallback.
+--- Whether `M.setup()` has run. The fallback in `M.get()` does not count.
 ---@return boolean
 function M.is_configured()
   return config ~= nil
