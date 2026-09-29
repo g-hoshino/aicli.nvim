@@ -4,11 +4,50 @@ Run CLI coding agents such as [Claude Code](https://claude.com/claude-code) and
 [Codex CLI](https://developers.openai.com/codex/cli) in a floating Neovim
 terminal. No plugin dependencies.
 
+<!--
+  Demo GIF goes here, e.g.
+  <p align="center"><img src="https://github.com/user-attachments/assets/..." alt="aicli.nvim demo" width="800"></p>
+  Suggested script: open a file, <leader>ac, let the agent edit it, <C-q> to
+  hide (the buffer reloads), <leader>ac to come back to the same conversation.
+-->
+
 - **One session per project.** Each agent starts at the project root of the
   current buffer, and each root keeps its own session.
 - **Hiding is not quitting.** The CLI keeps running while its window is hidden.
 - **Edited files reload.** Buffers the agent changed on disk are refreshed.
 - **Any CLI.** Add a provider entry to get a command and a key for it.
+
+## Quick start
+
+Once [installed](#installation), in any file of a project:
+
+1. `<leader>ac` opens Claude Code in a float at the project root
+   (`<leader>ax` for Codex CLI, `<leader>aa` to pick).
+2. Ask it to change something. `<C-q>` hides the window; the agent keeps
+   running, and the buffers it edited reload.
+3. `<leader>ac` again brings back the same conversation.
+
+## Why not a general toggle terminal?
+
+[toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim),
+[snacks.nvim](https://github.com/folke/snacks.nvim)'s terminal or a plain
+`:terminal` can all run `claude` in a float, and they are the better choice for
+general shell work (splits, numbered shells, sending lines to a REPL).
+
+Terminal agents are a narrower job: they edit your files for minutes at a
+time and hold a conversation about one project. aicli.nvim ships the pieces
+you would otherwise add on top of a terminal plugin for that:
+
+| To get this | On a general terminal plugin | aicli.nvim |
+| --- | --- | --- |
+| A separate conversation per project | Give each project its own terminal ID and working directory | Keyed by agent and project root, found from the current buffer |
+| See the agent's edits in open buffers | Add a `:checktime` autocmd | Built in (`auto_reload`) |
+| Several agents | Define a terminal and a mapping for each | One `providers` entry gives a command, a key and a picker entry |
+| Offer only installed agents | Check the executables yourself | The picker skips missing ones; `:checkhealth aicli` shows each path |
+| Keep `<Esc>` for the agent | Avoid the common `<Esc><Esc>` → normal mode mapping | `<Esc>` is not mapped by default |
+
+It does nothing else: the window is always a float, and there is one kind of
+terminal.
 
 ## Requirements
 
