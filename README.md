@@ -1,15 +1,18 @@
+<div align="center">
+
 # aicli.nvim
+
+[![Neovim](https://img.shields.io/badge/Neovim-0.11%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
 
 Run CLI coding agents such as [Claude Code](https://claude.com/claude-code) and
 [Codex CLI](https://developers.openai.com/codex/cli) in a floating Neovim
 terminal. No plugin dependencies.
 
-<!--
-  Demo GIF goes here, e.g.
-  <p align="center"><img src="https://github.com/user-attachments/assets/..." alt="aicli.nvim demo" width="800"></p>
-  Suggested script: open a file, <leader>ac, let the agent edit it, <C-q> to
-  hide (the buffer reloads), <leader>ac to come back to the same conversation.
--->
+<img src="assets/demo.gif" alt="Toggling an agent in a floating window: it edits main.py, the window is hidden with Ctrl-q and the buffer reloads, then the same session comes back" width="800">
+
+</div>
 
 - **One session per project.** Each agent starts at the project root of the
   current buffer, and each root keeps its own session.
